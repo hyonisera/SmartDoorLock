@@ -27,10 +27,6 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-typedef uint8_t bool;
-#define true	1
-#define false	0
-
 #define STATE1	0
 #define STATE2	1
 #define STATE3	2
@@ -53,7 +49,6 @@ UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
 uint8_t state = STATE1;
-GPIO_PinState KEYPAD5, KEYPAD6, KEYPAD7;
 
 char tx_buf[10];
 uint16_t key_buf[30];
@@ -171,12 +166,12 @@ void SystemClock_Config(void)
   */
 static void MX_NVIC_Init(void)
 {
-  /* EXTI15_10_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
   /* TIM3_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(TIM3_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(TIM3_IRQn);
+  /* EXTI15_10_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 }
 
 /**
@@ -198,9 +193,9 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 1599;
+  htim3.Init.Prescaler = 159;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 999;
+  htim3.Init.Period = 4999;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
@@ -275,10 +270,10 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, KEYPAD6_Pin|KEYPAD5_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, KEYPAD6_Pin|KEYPAD5_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(KEYPAD7_GPIO_Port, KEYPAD7_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(KEYPAD7_GPIO_Port, KEYPAD7_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pins : KEYPAD6_Pin KEYPAD5_Pin */
   GPIO_InitStruct.Pin = KEYPAD6_Pin|KEYPAD5_Pin;
@@ -289,7 +284,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : KEYPAD1_Pin KEYPAD2_Pin KEYPAD3_Pin KEYPAD4_Pin */
   GPIO_InitStruct.Pin = KEYPAD1_Pin|KEYPAD2_Pin|KEYPAD3_Pin|KEYPAD4_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
 
@@ -308,15 +303,17 @@ static void MX_GPIO_Init(void)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
 	if(htim->Instance == TIM3) {
-		if(state == STATE1){
+		GPIO_PinState KEYPAD5, KEYPAD6, KEYPAD7;
+
+		if(state == STATE1) {
 			KEYPAD5 = 0; KEYPAD6 = 1; KEYPAD7 = 1;
 			state = STATE2;
 		}
-		else if(state == STATE2){
+		else if(state == STATE2) {
 			KEYPAD5 = 1; KEYPAD6 = 0; KEYPAD7 = 1;
 			state = STATE3;
 		}
-		else if(state == STATE3){
+		else if(state == STATE3) {
 			KEYPAD5 = 1; KEYPAD6 = 1; KEYPAD7 = 0;
 			state = STATE1;
 		}
@@ -329,53 +326,27 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
+	HAL_TIM_Base_Stop_IT(&htim3);
+
 	if(GPIO_Pin == KEYPAD1_Pin) {
-		if(state == STATE2) {
-			num = '1';
-		}
-		else if(state == STATE3) {
-			num = '2';
-		}
-		else if(state == STATE1) {
-			num = '3';
-		}
-		HAL_GPIO_ReadPin(KEYPAD1_GPIO_Port, KEYPAD1_Pin);
+		if(state == STATE2) num = '1';
+		else if(state == STATE3) num = '2';
+		else if(state == STATE1) num = '3';
 	}
 	else if(GPIO_Pin == KEYPAD2_Pin) {
-		if(state == STATE2) {
-			num = '4';
-		}
-		else if(state == STATE3) {
-			num = '5';
-		}
-		else if(state == STATE1) {
-			num = '6';
-		}
-		HAL_GPIO_ReadPin(KEYPAD2_GPIO_Port, KEYPAD2_Pin);
+		if(state == STATE2) num = '4';
+		else if(state == STATE3) num = '5';
+		else if(state == STATE1) num = '6';
 	}
 	else if(GPIO_Pin == KEYPAD3_Pin) {
-		if(state == STATE2) {
-			num = '7';
-		}
-		else if(state == STATE3) {
-			num = '8';
-		}
-		else if(state == STATE1) {
-			num = '9';
-		}
-		HAL_GPIO_ReadPin(KEYPAD3_GPIO_Port, KEYPAD3_Pin);
+		if(state == STATE2) num = '7';
+		else if(state == STATE3) num = '8';
+		else if(state == STATE1) num = '9';
 	}
 	else if(GPIO_Pin == KEYPAD4_Pin) {
-		if(state == STATE2) {
-			num = '*';
-		}
-		else if(state == STATE3) {
-			num = '0';
-		}
-		else if(state == STATE1) {
-			num = '#';
-		}
-		HAL_GPIO_ReadPin(KEYPAD4_GPIO_Port, KEYPAD4_Pin);
+		if(state == STATE2) num = '*';
+		else if(state == STATE3) num = '0';
+		else if(state == STATE1) num = '#';
 	}
 
 	sprintf(tx_buf, "%c\n\r", num);

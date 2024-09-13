@@ -73,8 +73,12 @@ void Error_Handler(void);
 #define KEYPAD4_EXTI_IRQn EXTI15_10_IRQn
 #define KEYPAD7_Pin GPIO_PIN_0
 #define KEYPAD7_GPIO_Port GPIOG
+#define SETUP_SW_Pin GPIO_PIN_1
+#define SETUP_SW_GPIO_Port GPIOG
 #define KEYPAD5_Pin GPIO_PIN_6
 #define KEYPAD5_GPIO_Port GPIOB
+#define LD2_Pin GPIO_PIN_7
+#define LD2_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

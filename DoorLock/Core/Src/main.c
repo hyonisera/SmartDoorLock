@@ -31,7 +31,7 @@
 #define STATE2	1
 #define STATE3	2
 
-#define DEBOUNCE_DELAY	200
+#define DEBOUNCE_DELAY	300
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -52,11 +52,20 @@ UART_HandleTypeDef huart3;
 /* USER CODE BEGIN PV */
 uint8_t state = STATE1;
 
-char tx_buf[10];
+char tx_buf[50];
 uint16_t key_buf[30];
 char num = '\0';
 
 uint8_t chk = 0;
+
+char password[9] = "12345678";
+char input_pw[9] = {0};
+uint8_t pw_index = 0;
+
+uint8_t door_open = 0;
+uint8_t setup_pw = 0;
+char new_pw[9] = {0};
+uint8_t new_pw_index = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -280,8 +289,11 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(KEYPAD7_GPIO_Port, KEYPAD7_Pin, GPIO_PIN_SET);
 
-  /*Configure GPIO pins : KEYPAD6_Pin KEYPAD5_Pin */
-  GPIO_InitStruct.Pin = KEYPAD6_Pin|KEYPAD5_Pin;
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pins : KEYPAD6_Pin KEYPAD5_Pin LD2_Pin */
+  GPIO_InitStruct.Pin = KEYPAD6_Pin|KEYPAD5_Pin|LD2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -299,6 +311,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(KEYPAD7_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : SETUP_SW_Pin */
+  GPIO_InitStruct.Pin = SETUP_SW_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(SETUP_SW_GPIO_Port, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -351,6 +369,13 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 	}
 	last_interrupt_time = current_time;
 
+	if(door_open && GPIO_Pin == SETUP_SW_Pin) {
+		setup_pw = 1;
+		sprintf(tx_buf, "\n\r새 비밀번호를 입력하세요.\n\r");
+		HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
+		return;
+	}
+
 	chk = 1;	// 스캔 중단
 
 	if(GPIO_Pin == KEYPAD1_Pin) {
@@ -374,8 +399,44 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 		else if(state == STATE1) num = '#';
 	}
 
-	sprintf(tx_buf, "%c\n\r", num);
-	HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
+	if(setup_pw) {
+		new_pw[new_pw_index++] = num;
+		sprintf(tx_buf, "%c", num);
+		HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
+
+		if(new_pw_index == 8) {
+			new_pw[8] = '\0';
+			strcpy(password, new_pw);
+			sprintf(tx_buf, "\n\r새 비밀번호가 설정되었습니다.\n\r");
+			HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
+			new_pw_index = 0;
+			setup_pw = 0;
+		}
+	}
+	else {
+		input_pw[pw_index++] = num;
+
+		sprintf(tx_buf, "%c", num);
+		HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
+
+		if(pw_index == 8) {
+			input_pw[8] = '\0';
+
+			if(strcmp(input_pw, password) == 0) {
+				sprintf(tx_buf, "\n\r문이 열립니다.\n\r");
+				HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
+				door_open = 1;
+			}
+			else {
+				sprintf(tx_buf, "\n\r비밀번호가 틀렸습니다.\n\r");
+				HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+				door_open = 0;
+			}
+			HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
+			pw_index = 0;
+		}
+	}
+
 }
 /* USER CODE END 4 */
 

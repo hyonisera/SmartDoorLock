@@ -31,7 +31,7 @@
 #define STATE2	1
 #define STATE3	2
 
-#define DEBOUNCE_DELAY	300
+#define DEBOUNCE_DELAY	200
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -59,13 +59,12 @@ char num = '\0';
 uint8_t chk = 0;
 
 char password[9] = "12345678";
-char input_pw[9] = {0};
+char input_pw[9] = "";
 uint8_t pw_index = 0;
 
 uint8_t door_open = 0;
 uint8_t setup_pw = 0;
-char new_pw[9] = {0};
-uint8_t new_pw_index = 0;
+char new_pw[9] = "";
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -186,6 +185,9 @@ static void MX_NVIC_Init(void)
   /* EXTI15_10_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+  /* EXTI1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 }
 
 /**
@@ -352,7 +354,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			KEYPAD3 = HAL_GPIO_ReadPin(KEYPAD3_GPIO_Port, KEYPAD3_Pin);
 			KEYPAD4 = HAL_GPIO_ReadPin(KEYPAD4_GPIO_Port, KEYPAD4_Pin);
 
-			if(KEYPAD1 == 1 && KEYPAD2 == 1 && KEYPAD3 == 1 && KEYPAD4 == 1) {
+			if(KEYPAD1 == 1 && KEYPAD2 == 1 && KEYPAD3 == 1 && KEYPAD4 == 1) {	// 키가 눌리지 않았을 때
 				chk = 0;
 			}
 		}
@@ -369,14 +371,15 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 	}
 	last_interrupt_time = current_time;
 
-	if(door_open && GPIO_Pin == SETUP_SW_Pin) {
+	if(door_open == 1 && GPIO_Pin == SETUP_SW_Pin) {
 		setup_pw = 1;
+		pw_index = 0;
 		sprintf(tx_buf, "\n\r새 비밀번호를 입력하세요.\n\r");
 		HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
 		return;
 	}
 
-	chk = 1;	// 스캔 중단
+	chk = 1;	// 스캔 중단하고 눌린 키의 상태 확인
 
 	if(GPIO_Pin == KEYPAD1_Pin) {
 		if(state == STATE2) num = '1';
@@ -399,28 +402,33 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 		else if(state == STATE1) num = '#';
 	}
 
-	if(setup_pw) {
-		new_pw[new_pw_index++] = num;
-		sprintf(tx_buf, "%c", num);
-		HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
-
-		if(new_pw_index == 8) {
-			new_pw[8] = '\0';
-			strcpy(password, new_pw);
-			sprintf(tx_buf, "\n\r새 비밀번호가 설정되었습니다.\n\r");
+	if(setup_pw == 1) {
+		if(num != '*') {
+			if(pw_index < 8) {
+				new_pw[pw_index++] = num;
+				sprintf(tx_buf, "%c", num);
+				HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
+			}
+		}
+		else {
+			new_pw[pw_index] = '\0';
+			strcpy(password, new_pw);	// 기존 비밀번호를 새 비밀번호로 교체
+			sprintf(tx_buf, "\n\r비밀번호가 설정되었습니다.\n\r");
 			HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
-			new_pw_index = 0;
-			setup_pw = 0;
+			setup_pw = 0;	// 비밀번호 설정 모드 비활성화
+			pw_index = 0;
 		}
 	}
 	else {
-		input_pw[pw_index++] = num;
-
-		sprintf(tx_buf, "%c", num);
-		HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
-
-		if(pw_index == 8) {
-			input_pw[8] = '\0';
+		if(num != '*') {
+			if(pw_index < 8) {
+				input_pw[pw_index++] = num;
+				sprintf(tx_buf, "%c", num);
+				HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
+			}
+		}
+		else {
+			input_pw[pw_index] = '\0';
 
 			if(strcmp(input_pw, password) == 0) {
 				sprintf(tx_buf, "\n\r문이 열립니다.\n\r");
@@ -430,13 +438,11 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 			else {
 				sprintf(tx_buf, "\n\r비밀번호가 틀렸습니다.\n\r");
 				HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
-				door_open = 0;
 			}
 			HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
 			pw_index = 0;
 		}
 	}
-
 }
 /* USER CODE END 4 */
 

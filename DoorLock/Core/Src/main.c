@@ -46,6 +46,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim4;
 
 UART_HandleTypeDef huart3;
 
@@ -62,7 +63,8 @@ char password[9] = "12345678";
 char input_pw[9] = "";
 uint8_t pw_index = 0;
 
-uint8_t door_open = 0;
+uint8_t is_door_lock = 1;
+uint8_t is_door_open = 0;
 uint8_t setup_pw = 0;
 char new_pw[9] = "";
 /* USER CODE END PV */
@@ -72,6 +74,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_USART3_UART_Init(void);
+static void MX_TIM4_Init(void);
 static void MX_NVIC_Init(void);
 /* USER CODE BEGIN PFP */
 
@@ -113,11 +116,13 @@ int main(void)
   MX_GPIO_Init();
   MX_TIM3_Init();
   MX_USART3_UART_Init();
+  MX_TIM4_Init();
 
   /* Initialize interrupts */
   MX_NVIC_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start_IT(&htim3);
+  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -236,6 +241,65 @@ static void MX_TIM3_Init(void)
 }
 
 /**
+  * @brief TIM4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM4_Init(void)
+{
+
+  /* USER CODE BEGIN TIM4_Init 0 */
+
+  /* USER CODE END TIM4_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM4_Init 1 */
+
+  /* USER CODE END TIM4_Init 1 */
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 15;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = 19999;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 499;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM4_Init 2 */
+
+  /* USER CODE END TIM4_Init 2 */
+  HAL_TIM_MspPostInit(&htim4);
+
+}
+
+/**
   * @brief USART3 Initialization Function
   * @param None
   * @retval None
@@ -314,11 +378,24 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(KEYPAD7_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : SETUP_SW_Pin */
-  GPIO_InitStruct.Pin = SETUP_SW_Pin;
+  /*Configure GPIO pins : SETUP_SW_Pin DOOR_SW_Pin */
+  GPIO_InitStruct.Pin = SETUP_SW_Pin|DOOR_SW_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(SETUP_SW_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : STATE_SW_Pin */
+  GPIO_InitStruct.Pin = STATE_SW_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(STATE_SW_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI2_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI2_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI3_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -365,19 +442,32 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 	static uint32_t last_interrupt_time;	// 값 유지, 자동으로 0으로 초기화
 	uint32_t current_time = HAL_GetTick();
+	static uint32_t unlock_time = 0;	// is_door_lock = 0 상태에서의 시간 기록
 
 	if((current_time - last_interrupt_time) < DEBOUNCE_DELAY) {
 		return;
 	}
 	last_interrupt_time = current_time;
 
-	if(door_open == 1 && GPIO_Pin == SETUP_SW_Pin) {
-		setup_pw = 1;
-		pw_index = 0;
-		sprintf(tx_buf, "\n\r새 비밀번호를 입력하세요.\n\r");
-		HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
-		return;
-	}
+//	if(STATE_SW == 0) {
+//		sprintf(tx_buf, "\r\n문이 열렸습니다.\r\n");
+//		TIM4->CCR1 = 1499;
+//		is_door_open = 1;
+//	}
+//	else {
+//		sprintf(tx_buf, "\r\n문이 닫혔습니다.\r\n");
+//		TIM4->CCR1 = 499;
+//		is_door_open = 0;
+//	}
+//	HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
+
+//	if(is_door_open == 1 && GPIO_Pin == SETUP_SW_Pin) {
+//		setup_pw = 1;
+//		pw_index = 0;
+//		sprintf(tx_buf, "\n\r새 비밀번호를 입력하세요.\n\r");
+//		HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
+//		return;
+//	}
 
 	chk = 1;	// 스캔 중단하고 눌린 키의 상태 확인
 
@@ -402,47 +492,90 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 		else if(state == STATE1) num = '#';
 	}
 
-	if(setup_pw == 1) {
-		if(num != '*') {
-			if(pw_index < 8) {
-				new_pw[pw_index++] = num;
-				sprintf(tx_buf, "%c", num);
-				HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
-			}
+	GPIO_PinState STATE_SW = HAL_GPIO_ReadPin(STATE_SW_GPIO_Port, STATE_SW_Pin);
+
+	if(num != '*') {
+		if(pw_index < 8) {
+			input_pw[pw_index++] = num;
+			sprintf(tx_buf, "%c", num);
 		}
 		else {
-			new_pw[pw_index] = '\0';
-			strcpy(password, new_pw);	// 기존 비밀번호를 새 비밀번호로 교체
-			sprintf(tx_buf, "\n\r비밀번호가 설정되었습니다.\n\r");
-			HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
-			setup_pw = 0;	// 비밀번호 설정 모드 비활성화
+			sprintf(tx_buf, "\n\r비밀번호가 틀렸습니다.\n\r");
 			pw_index = 0;
 		}
+		HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
 	}
 	else {
-		if(num != '*') {
-			if(pw_index < 8) {
-				input_pw[pw_index++] = num;
-				sprintf(tx_buf, "%c", num);
+		input_pw[pw_index] = '\0';
+
+		if(strcmp(input_pw, password) == 0) {
+			TIM4->CCR1 = 1499;
+			is_door_lock = 0;		// 문 열림 활성화
+		}
+		else {
+			sprintf(tx_buf, "\n\r비밀번호가 틀렸습니다.\n\r");
+		}
+		HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
+		pw_index = 0;
+	}
+
+	if(STATE_SW == 0) {
+		is_door_open = 1;
+		sprintf(tx_buf, "\n\r문이 열렸습니다.\n\r");
+	}
+	else {
+		if(is_door_lock == 0) {
+			if(current_time - unlock_time >= 3000) {
+				TIM4->CCR1 = 499;
+				is_door_lock = 1;
+				sprintf(tx_buf, "\n\r시간 초과로 문이 닫혔습니다.\n\r");
+				unlock_time = 0;
 				HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
 			}
 		}
-		else {
-			input_pw[pw_index] = '\0';
-
-			if(strcmp(input_pw, password) == 0) {
-				sprintf(tx_buf, "\n\r문이 열립니다.\n\r");
-				HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
-				door_open = 1;
-			}
-			else {
-				sprintf(tx_buf, "\n\r비밀번호가 틀렸습니다.\n\r");
-				HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
-			}
-			HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
-			pw_index = 0;
-		}
 	}
+
+//	if(setup_pw == 1) {
+//		if(num != '*') {
+//			if(pw_index < 8) {
+//				new_pw[pw_index++] = num;
+//				sprintf(tx_buf, "%c", num);
+//				HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
+//			}
+//		}
+//		else {
+//			new_pw[pw_index] = '\0';
+//			strcpy(password, new_pw);	// 기존 비밀번호를 새 비밀번호로 교체
+//			sprintf(tx_buf, "\n\r비밀번호가 설정되었습니다.\n\r");
+//			HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
+//			setup_pw = 0;	// 비밀번호 설정 모드 비활성화
+//			pw_index = 0;
+//		}
+//	}
+//	else {
+//		if(num != '*') {
+//			if(pw_index < 8) {
+//				input_pw[pw_index++] = num;
+//				sprintf(tx_buf, "%c", num);
+//				HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
+//			}
+//		}
+//		else {
+//			input_pw[pw_index] = '\0';
+//
+//			if(strcmp(input_pw, password) == 0) {
+//				sprintf(tx_buf, "\n\r문이 열립니다.\n\r");
+//				HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
+//				is_door_open = 1;
+//			}
+//			else {
+//				sprintf(tx_buf, "\n\r비밀번호가 틀렸습니다.\n\r");
+//				HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+//			}
+//			HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
+//			pw_index = 0;
+//		}
+//	}
 }
 /* USER CODE END 4 */
 

@@ -45,6 +45,7 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
 
@@ -52,12 +53,10 @@ UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
 uint8_t state = STATE1;
+uint8_t chk = 0;
 
 char tx_buf[50];
-uint16_t key_buf[30];
 char num = '\0';
-
-uint8_t chk = 0;
 
 char password[9] = "12345678";
 char input_pw[9] = "";
@@ -75,6 +74,7 @@ static void MX_GPIO_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_TIM4_Init(void);
+static void MX_TIM2_Init(void);
 static void MX_NVIC_Init(void);
 /* USER CODE BEGIN PFP */
 
@@ -117,6 +117,7 @@ int main(void)
   MX_TIM3_Init();
   MX_USART3_UART_Init();
   MX_TIM4_Init();
+  MX_TIM2_Init();
 
   /* Initialize interrupts */
   MX_NVIC_Init();
@@ -129,6 +130,22 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  if(is_door_lock == 0) {
+		  TIM4->CCR1 = 1499;
+		  HAL_TIM_Base_Start_IT(&htim2);
+
+		  if(is_door_open == 1) {
+			  HAL_TIM_Base_Stop_IT(&htim2);
+		  }
+		  else {
+			  is_door_lock = 1;
+			  TIM4->CCR1 = 499;
+			  HAL_TIM_Base_Stop_IT(&htim2);
+		  }
+	  }
+	  else {
+		  TIM4->CCR1 = 499;
+	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -190,9 +207,54 @@ static void MX_NVIC_Init(void)
   /* EXTI15_10_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
-  /* EXTI1_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(EXTI1_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+  /* TIM2_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(TIM2_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(TIM2_IRQn);
+}
+
+/**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 15999;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 4999;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
+
 }
 
 /**
@@ -380,7 +442,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : SETUP_SW_Pin DOOR_SW_Pin */
   GPIO_InitStruct.Pin = SETUP_SW_Pin|DOOR_SW_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
@@ -389,13 +451,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(STATE_SW_GPIO_Port, &GPIO_InitStruct);
-
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI2_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI2_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI3_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI3_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -436,30 +491,28 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			}
 		}
 	}
+	else if(htim->Instance == TIM2) {
+		if(is_door_lock == 0 && is_door_open == 0) {
+			is_door_lock = 1;
+//			TIM4->CCR1 = 499;
+
+			sprintf(tx_buf, "\n\r시간 초과로 문이 닫혔습니다.\n\r");
+			HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
+
+//			HAL_TIM_Base_Stop_IT(&htim2);
+		}
+	}
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 	static uint32_t last_interrupt_time;	// 값 유지, 자동으로 0으로 초기화
 	uint32_t current_time = HAL_GetTick();
-	static uint32_t unlock_time = 0;	// is_door_lock = 0 상태에서의 시간 기록
 
 	if((current_time - last_interrupt_time) < DEBOUNCE_DELAY) {
 		return;
 	}
 	last_interrupt_time = current_time;
-
-//	if(STATE_SW == 0) {
-//		sprintf(tx_buf, "\r\n문이 열렸습니다.\r\n");
-//		TIM4->CCR1 = 1499;
-//		is_door_open = 1;
-//	}
-//	else {
-//		sprintf(tx_buf, "\r\n문이 닫혔습니다.\r\n");
-//		TIM4->CCR1 = 499;
-//		is_door_open = 0;
-//	}
-//	HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
 
 //	if(is_door_open == 1 && GPIO_Pin == SETUP_SW_Pin) {
 //		setup_pw = 1;
@@ -492,25 +545,24 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 		else if(state == STATE1) num = '#';
 	}
 
-	GPIO_PinState STATE_SW = HAL_GPIO_ReadPin(STATE_SW_GPIO_Port, STATE_SW_Pin);
-
 	if(num != '*') {
 		if(pw_index < 8) {
 			input_pw[pw_index++] = num;
 			sprintf(tx_buf, "%c", num);
+			HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
 		}
 		else {
 			sprintf(tx_buf, "\n\r비밀번호가 틀렸습니다.\n\r");
+			HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
 			pw_index = 0;
 		}
-		HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
 	}
 	else {
 		input_pw[pw_index] = '\0';
 
 		if(strcmp(input_pw, password) == 0) {
-			TIM4->CCR1 = 1499;
 			is_door_lock = 0;		// 문 열림 활성화
+			sprintf(tx_buf, "\n\r비밀번호가 맞았습니다.\n\r");
 		}
 		else {
 			sprintf(tx_buf, "\n\r비밀번호가 틀렸습니다.\n\r");
@@ -519,20 +571,16 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 		pw_index = 0;
 	}
 
+	GPIO_PinState STATE_SW = HAL_GPIO_ReadPin(STATE_SW_GPIO_Port, STATE_SW_Pin);
+
 	if(STATE_SW == 0) {
 		is_door_open = 1;
-		sprintf(tx_buf, "\n\r문이 열렸습니다.\n\r");
-	}
-	else {
-		if(is_door_lock == 0) {
-			if(current_time - unlock_time >= 3000) {
-				TIM4->CCR1 = 499;
-				is_door_lock = 1;
-				sprintf(tx_buf, "\n\r시간 초과로 문이 닫혔습니다.\n\r");
-				unlock_time = 0;
-				HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
-			}
-		}
+//		if(is_door_lock == 0) {
+//			is_door_open = 1;
+//			sprintf(tx_buf, "\n\r문이 열렸습니다.\n\r");
+//			HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
+//			HAL_TIM_Base_Stop_IT(&htim2);
+//		}
 	}
 
 //	if(setup_pw == 1) {

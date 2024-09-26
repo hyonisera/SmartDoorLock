@@ -79,6 +79,7 @@ void Error_Handler(void);
 #define SETUP_SW_GPIO_Port GPIOG
 #define STATE_SW_Pin GPIO_PIN_2
 #define STATE_SW_GPIO_Port GPIOG
+#define STATE_SW_EXTI_IRQn EXTI2_IRQn
 #define DOOR_SW_Pin GPIO_PIN_3
 #define DOOR_SW_GPIO_Port GPIOG
 #define KEYPAD5_Pin GPIO_PIN_6

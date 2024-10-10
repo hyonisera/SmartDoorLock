@@ -29,25 +29,25 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   ALLOC
  12 .ARM.attributes 00000030  00000000  00000000  00007068  2**0
                   CONTENTS, READONLY
- 13 .debug_info   0000d760  00000000  00000000  00007098  2**0
+ 13 .debug_info   0000d761  00000000  00000000  00007098  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 14 .debug_abbrev 00001d45  00000000  00000000  000147f8  2**0
+ 14 .debug_abbrev 00001d2c  00000000  00000000  000147f9  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 15 .debug_aranges 00000cc8  00000000  00000000  00016540  2**3
+ 15 .debug_aranges 00000cc8  00000000  00000000  00016528  2**3
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 16 .debug_rnglists 00000a0a  00000000  00000000  00017208  2**0
+ 16 .debug_rnglists 00000a0a  00000000  00000000  000171f0  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 17 .debug_macro  00023810  00000000  00000000  00017c12  2**0
+ 17 .debug_macro  00023810  00000000  00000000  00017bfa  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 18 .debug_line   0000ea88  00000000  00000000  0003b422  2**0
+ 18 .debug_line   0000ea88  00000000  00000000  0003b40a  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 19 .debug_str    000da75e  00000000  00000000  00049eaa  2**0
+ 19 .debug_str    000da75e  00000000  00000000  00049e92  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 20 .comment      00000043  00000000  00000000  00124608  2**0
+ 20 .comment      00000043  00000000  00000000  001245f0  2**0
                   CONTENTS, READONLY
- 21 .debug_frame  00003b18  00000000  00000000  0012464c  2**2
+ 21 .debug_frame  00003b18  00000000  00000000  00124634  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 22 .debug_line_str 00000065  00000000  00000000  00128164  2**0
+ 22 .debug_line_str 00000065  00000000  00000000  0012814c  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
 
 Disassembly of section .text:
@@ -482,6 +482,7 @@ int main(void)
  80005e6:	2100      	movs	r1, #0
  80005e8:	4803      	ldr	r0, [pc, #12]	@ (80005f8 <main+0x48>)
  80005ea:	f002 fac7 	bl	8002b7c <HAL_TIM_PWM_Start>
+//  HAL_UART_Receive_IT(&huart3, &rx_data, 1);
   /* USER CODE END 2 */
 
   /* Infinite loop */

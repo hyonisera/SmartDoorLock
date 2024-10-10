@@ -61,7 +61,7 @@ uint8_t chk = 0;
 char tx_buf[50];
 char num = '\0';
 
-char password[9] = "11111111";
+char password[9] = "12345678";
 char input_pw[9] = "";
 uint8_t pw_index = 0;
 
@@ -78,6 +78,9 @@ char new_pw[9] = "";
 //};
 //const uint16_t open_bell[] = {C5, E5, G5};
 //uint16_t bell_index = 0;
+
+//uint8_t rx_index = 0, rx_buf[20];
+//uint8_t rx_data = 0, rx_complete = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -142,13 +145,33 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
+//  HAL_UART_Receive_IT(&huart3, &rx_data, 1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-
+//	  if(rx_complete == 1) {
+//		  rx_complete = 0;
+//
+//		  if(strstr((char*)rx_buf, "OPEN") != 0) {
+//			  if(rx_buf[4] == '1') {
+//				  is_door_open = 1;
+//			  }
+//			  else if(rx_buf[4] == '0') {
+//				  is_door_open = 0;
+//			  }
+//		  }
+//		  else if(strstr((char*)rx_buf, "LOCK") != 0) {
+//			  if(rx_buf[4] = '1') {
+//				  is_door_lock = 1;
+//			  }
+//			  else if(rx_buf[4] = '0') {
+//				  is_door_lock = 0;
+//			  }
+//		  }
+//	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -812,6 +835,35 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 		HAL_UART_Transmit_IT(&huart3, (uint8_t*)tx_buf, strlen(tx_buf));
 	}
 }
+
+//void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+//{
+//	if(huart->Instance == USART3) {
+//		uint8_t ch;
+//		ch = rx_data;
+//
+//		if(ch == '\n' || ch == '\r') {
+//			rx_buf[rx_index] = 0;
+//			rx_index = 0;
+//			rx_complete = 1;
+//
+//			char *str = "\r\n>> ";
+//			HAL_UART_Transmit_IT(&huart3, (uint8_t*)str, strlen(str));
+//		}
+//		else if(ch == '\b') {
+//			if(rx_index != 0) {
+//				rx_index--;
+//				char *str = "\b \b";
+//				HAL_UART_Transmit_IT(&huart3, (uint8_t*)str, strlen(str));
+//			}
+//		}
+//		else {
+//			rx_buf[rx_index++] = ch;
+//			HAL_UART_Transmit_IT(&huart3, &ch, 1);		// 하나씩 보냄
+//		}
+//		HAL_UART_Receive_IT(&huart3, &rx_data, 1);		// 하나씩 입력받음
+//	}
+//}
 /* USER CODE END 4 */
 
 /**

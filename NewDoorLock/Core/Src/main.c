@@ -55,6 +55,20 @@ uint8_t table[] = {'1', '4', '7', '*', '2', '5', '8', '0', '3', '6', '9', '#'};
 char tx_buf[10];
 uint32_t last_key_time = 0;
 uint8_t chk = 0;
+
+#define EEPROM_ADDR 0xA0
+uint8_t toWrite1[] = "English is a WestGermanic language of the IndoEuropean language";
+uint8_t toWrite2[] = "The STM32 family of 32-bit microcontrollers based on Arm Cortex";
+uint8_t toWriteA[] = "Hello";
+uint8_t toWriteB[] = "Hi";
+uint8_t toWriteM[] = "Microcontroller is a compressed micro computer";
+uint8_t toWriteL[] = "EEPROM stands for electrically erasable programmable readonly M";
+uint8_t toRead1[64];
+uint8_t toRead2[64];
+uint8_t toReadA[5];
+uint8_t toReadB[2];
+uint8_t toReadM[64];
+uint8_t toReadL[64];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -103,6 +117,14 @@ int main(void)
   MX_USART3_UART_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
+  //  HAL_I2C_Mem_Write(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint16_t MemAddress,
+  //		  uint16_t MemAddSize, uint8_t *pData, uint16_t Size, uint32_t Timeout);
+  HAL_I2C_Mem_Write(&hi2c1, EEPROM_ADDR, 0, 2, toWrite1, sizeof(toWrite1), 1000);
+
+
+  //  HAL_I2C_Mem_Read(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint16_t MemAddress,
+  //		  uint16_t MemAddSize, uint8_t *pData, uint16_t Size, uint32_t Timeout);
+  HAL_I2C_Mem_Read(&hi2c1, EEPROM_ADDR, 0, 2, toRead1, sizeof(toRead1), 1000);
 
   /* USER CODE END 2 */
 
@@ -229,7 +251,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.ClockSpeed = 100000;
+  hi2c1.Init.ClockSpeed = 400000;
   hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;

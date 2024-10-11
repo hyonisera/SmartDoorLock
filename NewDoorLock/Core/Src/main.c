@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -31,9 +32,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define STATE1 0
-#define STATE2 1
-#define STATE3 2
+#define STATE1 2
+#define STATE2 0
+#define STATE3 1
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -42,16 +43,25 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+I2C_HandleTypeDef hi2c1;
+
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-
+uint8_t state = STATE1;
+GPIO_PinState KEYPAD1, KEYPAD2, KEYPAD3, KEYPAD4, KEYPAD5, KEYPAD6, KEYPAD7;
+uint8_t data = 0;
+uint8_t table[] = {'1', '4', '7', '*', '2', '5', '8', '0', '3', '6', '9', '#'};
+char tx_buf[10];
+uint32_t last_key_time = 0;
+uint8_t chk = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART3_UART_Init(void);
+static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -70,10 +80,6 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
 	uint32_t current_time = HAL_GetTick();
-	uint8_t state = STATE1;
-	GPIO_PinState KEYPAD1, KEYPAD2, KEYPAD3, KEYPAD4, KEYPAD5, KEYPAD6, KEYPAD7;
-	uint8_t data = 0;
-	uint8_t table[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '*', '9', '#'};
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -95,6 +101,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART3_UART_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -103,73 +110,60 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  if(HAL_GetTick() - current_time >= 10) {
+	  if(HAL_GetTick() - current_time >= 10) {		// 10ms마다 state 변경
 		  current_time = HAL_GetTick();
 
-		  if(state == STATE1) {
-			  KEYPAD5 = 0; KEYPAD6 = 1; KEYPAD7 = 1;
-			  state = STATE2;
+		  if(chk == 0) {
+			  if(state == STATE1) {
+				  KEYPAD5 = 0; KEYPAD6 = 1; KEYPAD7 = 1;
+				  state = STATE2;
+			  }
+			  else if(state == STATE2) {
+				  KEYPAD5 = 1; KEYPAD6 = 0; KEYPAD7 = 1;
+				  state = STATE3;
+			  }
+			  else if(state == STATE3) {
+				  KEYPAD5 = 1; KEYPAD6 = 1; KEYPAD7 = 0;
+				  state = STATE1;
+			  }
+			  HAL_GPIO_WritePin(KEYPAD5_GPIO_Port, KEYPAD5_Pin, KEYPAD5);
+			  HAL_GPIO_WritePin(KEYPAD6_GPIO_Port, KEYPAD6_Pin, KEYPAD6);
+			  HAL_GPIO_WritePin(KEYPAD7_GPIO_Port, KEYPAD7_Pin, KEYPAD7);
 		  }
-		  else if(state == STATE2) {
-			  KEYPAD5 = 1; KEYPAD6 = 0; KEYPAD7 = 1;
-			  state = STATE3;
+
+		  KEYPAD1 = HAL_GPIO_ReadPin(KEYPAD1_GPIO_Port, KEYPAD1_Pin);
+		  KEYPAD2 = HAL_GPIO_ReadPin(KEYPAD2_GPIO_Port, KEYPAD2_Pin);
+		  KEYPAD3 = HAL_GPIO_ReadPin(KEYPAD3_GPIO_Port, KEYPAD3_Pin);
+		  KEYPAD4 = HAL_GPIO_ReadPin(KEYPAD4_GPIO_Port, KEYPAD4_Pin);
+
+		  data = 0;
+		  data |= (KEYPAD1 << 0) | (KEYPAD2 << 1) | (KEYPAD3 << 2) | (KEYPAD4 << 3);
+
+		  if(data != 0x0F && chk == 0) {
+			  if((HAL_GetTick() - last_key_time) > 50) {
+				  last_key_time = HAL_GetTick();
+
+				  uint8_t index = -1;
+				  uint8_t exponent = 0;
+
+				  data = (~data & 0x0F);		// 반전한 값을 0x0F와 &연산해서 1, 2, 4, 8 뽑아냄
+
+				  while(data > 1) {				// 지수 0, 1, 2, 3 뽑아냄
+					  data >>= 1;
+					  exponent++;
+				  }
+
+				  index = state * 4 + exponent;
+
+				  sprintf(tx_buf, "%c\n\r", table[index]);
+				  HAL_UART_Transmit(&huart3, (uint8_t*)tx_buf, strlen(tx_buf), 100);
+			  }
+			  chk = 1;
 		  }
-		  else if(state == STATE3) {
-			  KEYPAD5 = 1; KEYPAD6 = 1; KEYPAD7 = 0;
-			  state = STATE1;
+		  else if(data == 0x0F && chk == 1) {
+			  chk = 0;
 		  }
-		  HAL_GPIO_WritePin(KEYPAD5_GPIO_Port, KEYPAD5_Pin, KEYPAD5);
-		  HAL_GPIO_WritePin(KEYPAD6_GPIO_Port, KEYPAD6_Pin, KEYPAD6);
-		  HAL_GPIO_WritePin(KEYPAD7_GPIO_Port, KEYPAD7_Pin, KEYPAD7);
 	  }
-
-	  KEYPAD1 = HAL_GPIO_ReadPin(KEYPAD1_GPIO_Port, KEYPAD1_Pin);
-	  KEYPAD2 = HAL_GPIO_ReadPin(KEYPAD2_GPIO_Port, KEYPAD2_Pin);
-	  KEYPAD3 = HAL_GPIO_ReadPin(KEYPAD3_GPIO_Port, KEYPAD3_Pin);
-	  KEYPAD4 = HAL_GPIO_ReadPin(KEYPAD4_GPIO_Port, KEYPAD4_Pin);
-
-	  data = 0;
-	  data |= (KEYPAD1 << 0);
-	  data |= (KEYPAD2 << 1);
-	  data |= (KEYPAD3 << 2);
-	  data |= (KEYPAD4 << 3);
-
-	  if(data != 0x0F) {
-		  uint8_t index = -1;
-
-		  if(state == STATE2) index = data;
-		  else if(state == STATE3) index = data + 4;
-		  else if(state == STATE1) index = data + 8;
-
-		  if(index != -1) {
-			  printf("%c\n\r", table[index]);
-		  }
-	  }
-
-//	  if(state == STATE2) {
-//		  if(data != 0x0F) {	// 키가 눌림
-//			  table[0]
-//		  }
-//		  else {	// 키가 눌리지 않음
-//
-//		  }
-//	  }
-//	  else if(state == STATE3) {
-//		  if(data != 0x0F) {
-//
-//		  }
-//		  else {
-//
-//		  }
-//	  }
-//	  else if(state == STATE1) {
-//		  if(data != 0x0F) {
-//
-//		  }
-//		  else {
-//
-//		  }
-//	  }
 
     /* USER CODE END WHILE */
 
@@ -217,6 +211,54 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.ClockSpeed = 100000;
+  hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Analogue filter
+  */
+  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Digital filter
+  */
+  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
+
 }
 
 /**

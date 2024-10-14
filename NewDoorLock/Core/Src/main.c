@@ -120,12 +120,26 @@ int main(void)
   //  HAL_I2C_Mem_Write(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint16_t MemAddress,
   //		  uint16_t MemAddSize, uint8_t *pData, uint16_t Size, uint32_t Timeout);
   HAL_I2C_Mem_Write(&hi2c1, EEPROM_ADDR, 0, 2, toWrite1, sizeof(toWrite1), 1000);
+  HAL_Delay(10);
+  HAL_I2C_Mem_Write(&hi2c1, EEPROM_ADDR, 64, 2, toWrite2, sizeof(toWrite2), 1000);
+  HAL_Delay(10);
+  HAL_I2C_Mem_Write(&hi2c1, EEPROM_ADDR, 129, 2, toWriteA, sizeof(toWriteA), 1000);
+  HAL_Delay(10);
+  HAL_I2C_Mem_Write(&hi2c1, EEPROM_ADDR, 189, 2, toWriteB, sizeof(toWriteB), 1000);
+  HAL_Delay(10);
+  HAL_I2C_Mem_Write(&hi2c1, EEPROM_ADDR, 16000, 2, toWriteM, sizeof(toWriteM), 1000);
+  HAL_Delay(10);
+  HAL_I2C_Mem_Write(&hi2c1, EEPROM_ADDR, 32704, 2, toWriteL, sizeof(toWriteL), 1000);
 
-
+  HAL_Delay(10);
   //  HAL_I2C_Mem_Read(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint16_t MemAddress,
   //		  uint16_t MemAddSize, uint8_t *pData, uint16_t Size, uint32_t Timeout);
   HAL_I2C_Mem_Read(&hi2c1, EEPROM_ADDR, 0, 2, toRead1, sizeof(toRead1), 1000);
-
+  HAL_I2C_Mem_Read(&hi2c1, EEPROM_ADDR, 64, 2, toRead2, sizeof(toRead2), 1000);
+  HAL_I2C_Mem_Read(&hi2c1, EEPROM_ADDR, 129, 2, toReadA, sizeof(toReadA), 1000);
+  HAL_I2C_Mem_Read(&hi2c1, EEPROM_ADDR, 189, 2, toReadB, sizeof(toReadB), 1000);
+  HAL_I2C_Mem_Read(&hi2c1, EEPROM_ADDR, 16000, 2, toReadM, sizeof(toReadM), 1000);
+  HAL_I2C_Mem_Read(&hi2c1, EEPROM_ADDR, 32704, 2, toReadL, sizeof(toReadL), 1000);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -251,7 +265,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.ClockSpeed = 400000;
+  hi2c1.Init.ClockSpeed = 100000;
   hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;

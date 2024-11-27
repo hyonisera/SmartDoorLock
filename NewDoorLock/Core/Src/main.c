@@ -35,6 +35,8 @@
 #define STATE1 2
 #define STATE2 0
 #define STATE3 1
+
+#define EEPROM_ADDR 0xA0
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -52,23 +54,12 @@ uint8_t state = STATE1;
 GPIO_PinState KEYPAD1, KEYPAD2, KEYPAD3, KEYPAD4, KEYPAD5, KEYPAD6, KEYPAD7;
 uint8_t data = 0;
 uint8_t table[] = {'1', '4', '7', '*', '2', '5', '8', '0', '3', '6', '9', '#'};
-char tx_buf[10];
+char tx_buf[30];
 uint32_t last_key_time = 0;
 uint8_t chk = 0;
 
-#define EEPROM_ADDR 0xA0
-uint8_t toWrite1[] = "English is a WestGermanic language of the IndoEuropean language";
-uint8_t toWrite2[] = "The STM32 family of 32-bit microcontrollers based on Arm Cortex";
-uint8_t toWriteA[] = "Hello";
-uint8_t toWriteB[] = "Hi";
-uint8_t toWriteM[] = "Microcontroller is a compressed micro computer";
-uint8_t toWriteL[] = "EEPROM stands for electrically erasable programmable readonly M";
-uint8_t toRead1[64];
-uint8_t toRead2[64];
-uint8_t toReadA[5];
-uint8_t toReadB[2];
-uint8_t toReadM[64];
-uint8_t toReadL[64];
+uint8_t initial_password[] = {'1', '2', '3', '4', '5', '6', '7', '8'};
+uint8_t read_password[8] = {0};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -117,29 +108,24 @@ int main(void)
   MX_USART3_UART_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-  //  HAL_I2C_Mem_Write(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint16_t MemAddress,
-  //		  uint16_t MemAddSize, uint8_t *pData, uint16_t Size, uint32_t Timeout);
-  HAL_I2C_Mem_Write(&hi2c1, EEPROM_ADDR, 0, 2, toWrite1, sizeof(toWrite1), 1000);
-  HAL_Delay(10);
-  HAL_I2C_Mem_Write(&hi2c1, EEPROM_ADDR, 64, 2, toWrite2, sizeof(toWrite2), 1000);
-  HAL_Delay(10);
-  HAL_I2C_Mem_Write(&hi2c1, EEPROM_ADDR, 129, 2, toWriteA, sizeof(toWriteA), 1000);
-  HAL_Delay(10);
-  HAL_I2C_Mem_Write(&hi2c1, EEPROM_ADDR, 189, 2, toWriteB, sizeof(toWriteB), 1000);
-  HAL_Delay(10);
-  HAL_I2C_Mem_Write(&hi2c1, EEPROM_ADDR, 16000, 2, toWriteM, sizeof(toWriteM), 1000);
-  HAL_Delay(10);
-  HAL_I2C_Mem_Write(&hi2c1, EEPROM_ADDR, 32704, 2, toWriteL, sizeof(toWriteL), 1000);
+  if(HAL_I2C_Mem_Read(&hi2c1, EEPROM_ADDR, 0, 2, (uint8_t*)read_password, sizeof(read_password), 1000) != HAL_OK) {
+	  sprintf(tx_buf, "Error reading password from EEPROM.\n\r");
+  }
 
-  HAL_Delay(10);
-  //  HAL_I2C_Mem_Read(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint16_t MemAddress,
-  //		  uint16_t MemAddSize, uint8_t *pData, uint16_t Size, uint32_t Timeout);
-  HAL_I2C_Mem_Read(&hi2c1, EEPROM_ADDR, 0, 2, toRead1, sizeof(toRead1), 1000);
-  HAL_I2C_Mem_Read(&hi2c1, EEPROM_ADDR, 64, 2, toRead2, sizeof(toRead2), 1000);
-  HAL_I2C_Mem_Read(&hi2c1, EEPROM_ADDR, 129, 2, toReadA, sizeof(toReadA), 1000);
-  HAL_I2C_Mem_Read(&hi2c1, EEPROM_ADDR, 189, 2, toReadB, sizeof(toReadB), 1000);
-  HAL_I2C_Mem_Read(&hi2c1, EEPROM_ADDR, 16000, 2, toReadM, sizeof(toReadM), 1000);
-  HAL_I2C_Mem_Read(&hi2c1, EEPROM_ADDR, 32704, 2, toReadL, sizeof(toReadL), 1000);
+  uint8_t needs_initialization = 1;
+  for(int i = 0; i < 8; i++) {
+	  if(read_password[i] != 0xFF) {
+		  needs_initialization = 0;
+		  break;
+	  }
+  }
+
+  if(needs_initialization) {
+	  if(HAL_I2C_Mem_Write(&hi2c1, EEPROM_ADDR, 0, 2, initial_password, sizeof(initial_password), 1000) == HAL_OK) {
+		  sprintf(tx_buf, "Initial password '12345678' written to EEPROM\n\r");
+	  }
+	  HAL_Delay(10);
+  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
